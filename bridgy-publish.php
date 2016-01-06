@@ -29,7 +29,7 @@ function bridgy_plugin_notice() {
 }
 
 // Config Class
- require_once( plugin_dir_path( __FILE__ ) . 'includes/class-bridgy-config.php');
+require_once( plugin_dir_path( __FILE__ ) . 'includes/class-bridgy-config.php');
 
 // Post Meta Class
- require_once( plugin_dir_path( __FILE__ ) . 'includes/class-bridgy-postmeta.php');
+require_once( plugin_dir_path( __FILE__ ) . 'includes/class-bridgy-postmeta.php');

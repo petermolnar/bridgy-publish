@@ -17,11 +17,7 @@ class bridgy_config {
 		add_settings_field( 'flickr', __('Enable Flickr Option', 'Bridgy Publish'), array('bridgy_config', 'checkbox_callback'), 'bridgy_options', 'bridgy-content' ,  array( 'name' => 'flickr') );
 		add_settings_field( 'omitlink', __('Disable Link Back to Post', 'Bridgy Publish'), array('bridgy_config', 'checkbox_callback'), 'bridgy_options', 'bridgy-content' ,  array( 'name' => 'omitlink') );
 		add_settings_field( 'ignoreformatting', __('Ignore Formatting', 'Bridgy Publish'), array('bridgy_config', 'checkbox_callback'), 'bridgy_options', 'bridgy-content' ,  array( 'name' => 'ignoreformatting') );
-
 		add_settings_field( 'shortlinks', __('Send Shortlinks insted of Full URL', 'Bridgy Publish'), array('bridgy_config', 'checkbox_callback'), 'bridgy_options', 'bridgy-content' ,  array( 'name' => 'shortlinks') );
-
-		add_settings_field( 'nodisplay', __('Do not display syndications', 'Bridgy Publish'), array('bridgy_config', 'checkbox_callback'), 'bridgy_options', 'bridgy-content' ,  array( 'name' => 'nodisplay') );
-
 	}
 
 	/**

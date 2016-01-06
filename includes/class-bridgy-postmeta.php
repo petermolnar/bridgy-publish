@@ -10,16 +10,23 @@ class bridgy_postmeta {
 	 *
 	 */
 	public static function init() {
-		// Add meta box to new post/post pages only
+		$options = get_option('bridgy_options');
+
 		add_action('load-post.php', array('bridgy_postmeta' , 'bridgybox_setup' ) );
 		add_action('load-post-new.php', array('bridgy_postmeta', 'bridgybox_setup') );
+
+		// save checkboxes
+		// also triggers the filter on the checkboxes for auto-magic
 		add_action('save_post', array('bridgy_postmeta', 'save_post'), 8, 2 );
+
+		// the actual worker
 		add_action('transition_post_status', array('bridgy_postmeta', 'transition_post_status') ,12,5);
 
-		// auto-add syndication links to post
-		add_filter('the_content', array('bridgy_postmeta', 'the_content') );
+		// insert required <a href=>-s for Bridgy to execut the publish
+		// without this, bridgy will say "Couldn't find link to brid.gy/publish/..."
+		// and you'll spend a lot of time debugging the issue
+		add_filter('the_content', array('bridgy_postmeta', 'the_content'), 2 );
 
-		add_filter('syn_add_links', array('bridgy_postmeta', 'syn_add_links') );
 	}
 
 	/**
@@ -110,22 +117,19 @@ class bridgy_postmeta {
 			return;
 		}
 
+
 		// Check the user's permissions.
-		if ( isset( $_POST['post_type'] ) && 'page' == $_POST['post_type'] ) {
-			if ( ! current_user_can( 'edit_page', $post_id ) ) {
-				return;
-			}
-		}
-		else {
-			if ( ! current_user_can( 'edit_post', $post_id ) ) {
-				return;
-			}
+		$type = 'post';
+		if ( isset( $_POST['post_type'] ) && 'page' == $_POST['post_type'] )
+			$type = 'page';
+
+		if ( ! current_user_can( "edit_{$type}", $post_id ) ) {
+			return;
 		}
 
-		$bridgy_changed = false;
 		$current = get_post_meta ( $post_id,'_bridgy_options', true );
 		$bridgy_checkboxes = static::bridgy_checkboxes();
-		$bridgy=array();
+		$bridgy = array();
 		// OK, its safe for us to save the data now.
 		foreach ($bridgy_checkboxes as $key => $value) {
 			if (isset( $_POST['bridgy_'.$key]) ) {
@@ -133,12 +137,13 @@ class bridgy_postmeta {
 			}
 		}
 
+		$bridgy = apply_filters ('bridgy_publish_urls', $bridgy, $post_id);
+
 		if(!empty($bridgy) && $bridgy != $current ) {
 			update_post_meta( $post_id,'_bridgy_options', $bridgy, $current);
-			$bridgy_changed = true;
 		}
 
-		return $bridgy_changed;
+		return $bridgy;
 	}
 
 	/**
@@ -146,46 +151,33 @@ class bridgy_postmeta {
 	 */
 	public static function transition_post_status($new, $old, $post) {
 
-		if ($new == 'publish') {
-			$changed = static::save_post($post->ID,$post);
-		}
 
-		$bridgy = get_post_meta($post->ID, '_bridgy_options', true);
-		$syn = get_post_meta($post->ID, 'bridgy_syndication', true);
+		if ($new != 'publish')
+			return false;
+
+		$bridgy = static::save_post($post->ID,$post);
+
 		$options = get_option('bridgy_options');
 
-		if ($options['shortlinks'] == 1 ) {
-			$url = wp_get_shortlink($post->ID);
-		}
-		else {
+		if ($options['shortlinks'] == 1 )
+			$url =  wp_get_shortlink($post->ID);
+		else
 			$url = get_permalink($post->ID);
-		}
 
-		if (!$syn) {
-				$syn="";
-		}
-
-		$bridgy = apply_filters ('bridgy_publish_urls', $bridgy, $post->ID);
 
 		if ( ! empty($bridgy) ) {
 			foreach ($bridgy as $key => $value) {
-				$response = send_webmention($url, 'https://www.brid.gy/publish/' . $key);
+				$response = send_webmention($url, "https://brid.gy/publish/{$key}", $post->ID);
 				$response_code = wp_remote_retrieve_response_code( $response );
 				$json = json_decode($response['body']);
-				if ($response_code==200) {
-					$syn = "\n" . $json->url;
-				}
-				if (($response_code==400)||($response_code==500)) {
-					static::debug($json->error);
-				}
-				static::debug('Help: ' . $syn);
-			}
 
-			if (!empty($syn)) {
-				update_post_meta($post->ID, 'bridgy_syndication', $syn);
-			}
-			else {
-				delete_post_meta($post->ID, 'bridgy_syndication');
+				if ($response_code == 200) {
+					static::debug('Bridgy did the magic and responded: ' . $json->url);
+					static::add_syndication($post->ID, $json->url);
+				}
+				else {
+					static::debug('Bridgy said something is wrong: ' . $json->error);
+				}
 			}
 		}
 	}
@@ -199,48 +191,13 @@ class bridgy_postmeta {
 		if (empty($bridgy))
 			return $content;
 
-
-		$options = get_option('bridgy_options');
-
-		if (isset($options['nodisplay']) && $options['nodisplay']==1) {
-			return $content;
-		}
-
 		$publish = "";
-		$classes = array();
 
-		if (isset($options['omitlink']) && $options['omitlink']==1) {
-			$classes[] = 'u-bridgy-omit-link';
-		}
-
-		if (isset($options['ignoreformatting']) && $options['ignoreformatting']==1) {
-			$classes[] = 'u-bridgy-ignore-formatting';
-		}
-
-		$class = implode(' ', $classes);
 		foreach ($bridgy as $key => $value) {
-			$publish .= '<a class="' . $class . '" href="https://www.brid.gy/publish/' . $key . '"></a>';
-		}
-		return $content . $publish;
-	}
-
-	/**
-	 *
-	 */
-	public static function syn_add_links($urls) {
-
-		$bridgy = get_post_meta(get_the_ID(), 'bridgy_syndication');
-
-		if(is_array($bridgy)) {
-			if (method_exists('syn_meta', 'clean_urls')) {
-				$urls = array_merge($urls, syn_meta::clean_urls($bridgy) );
-			}
-			else {
-				$url = static::add_syndication($urls);
-			}
+			$publish[] = '<a href="https://www.brid.gy/publish/' . $key . '"></a>';
 		}
 
-		return $urls;
+		return $content . "\n" . join ("\n", $publish);
 	}
 
 
@@ -263,15 +220,16 @@ class bridgy_postmeta {
 		foreach ($curr as $key => $curl )
 			$curr[$key] = rtrim(trim($curl), '/');
 
-		foreach ($url as $url) {
-
+		foreach ($urls as $url) {
 			$url = rtrim(trim($url), '/');
 			if (!in_array($url, $curr))
 				array_push($curr, $url);
 		}
 
 		$curr = apply_filters ('syndication_urls', $curr, $postid);
+
 		update_post_meta ( $postid, 'syndication_urls', join("\n", $curr), $orig );
+
 		return $curr;
 	}
 
