@@ -20,7 +20,7 @@ register_activation_hook(__FILE__, 'bridgy_publish_activation');
 // Add a notice to the Admin Pages if the WordPress Webmentions Plugin isn't Activated
 add_action( 'admin_notices', 'bridgy_plugin_notice' );
 function bridgy_plugin_notice() {
-	if (!class_exists("WebMentionPlugin")) {
+	if (!function_exists("send_webmention")) {
 		echo '<div class="error"><p>';
 		echo '<a href="https://wordpress.org/plugins/webmention/">';
 		esc_html_e( 'Bridgy Publish Requires the WordPress Webmention Plugin', 'Bridgy Publish' );
