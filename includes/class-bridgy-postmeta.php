@@ -183,7 +183,13 @@ class bridgy_postmeta {
 	}
 
 	/**
+	 * content filter: add neccessary <a> for bridgy, otherwise bridgy refuses
+	 * to take care of this post
+	 * also add parameters for bridgy, if those are enabled
 	 *
+	 * @param string $content - post content to extend
+	 *
+	 * @return string $content - extended content string
 	 */
 	public static function the_content($content) {
 		$bridgy = get_post_meta(get_the_ID(), '_bridgy_options', true);
@@ -191,15 +197,23 @@ class bridgy_postmeta {
 		if (empty($bridgy))
 			return $content;
 
-		$publish = "";
+		$options = get_option('bridgy_options');
+		$classes = $publish = array();
+
+		if ($options['omitlink']==1)
+			$classes[] = 'u-bridgy-omit-link';
+
+		if ($options['ignoreformatting']==1)
+			$classes[] = 'u-bridgy-ignore-formatting';
+
+		$class = join(' ', $classes);
 
 		foreach ($bridgy as $key => $value) {
-			$publish[] = '<a href="https://www.brid.gy/publish/' . $key . '"></a>';
+			$publish[] = '<a class="' . $class . '" href="https://www.brid.gy/publish/' . $key . '"></a>';
 		}
 
 		return $content . "\n" . join ("\n", $publish);
 	}
-
 
 	/**
 	 *
